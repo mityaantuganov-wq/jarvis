@@ -9,13 +9,13 @@ if not token:
 
 prompt = (
     "Ты дорабатываешь мобильное веб-приложение 'Джарвис' (один файл index.html, "
-    "HTML+CSS+JS, без внешних библиотек и серверов, работает в Chrome на Android).\\n"
+    "HTML+CSS+JS, без внешних библиотек и серверов, работает в Chrome на Android).\n"
     "Выполни ОДНУ задачу, которую реально можно выполнить только в этом клиентском файле. "
     "Если ближайшая задача требует серверной инфраструктуры или секретов, не имитируй её: "
-    "сохрани текущий код без изменений. Не ломай существующие функции.\\n"
+    "сохрани текущий код без изменений. Не ломай существующие функции.\n"
     "Верни ТОЛЬКО полный код index.html, без пояснений. Не добавляй API-ключи, токены "
-    "или фиктивное подключение к ИИ.\\n\\n"
-    f"Задачи:\\n{todo}\\n\\nТекущий код:\\n{code}"
+    "или фиктивное подключение к ИИ.\n\n"
+    f"Задачи:\n{todo}\n\nТекущий код:\n{code}"
 )
 body = json.dumps({
     "model": "openai/gpt-4o-mini",
@@ -60,15 +60,15 @@ if not text or not text.strip():
     print("ИИ не ответил, пропускаю этот запуск")
     sys.exit(0)
 
-m = re.search(r"`(?:html)?\\n(.*?)```", text, re.S)
+m = re.search(r"`(?:html)?\n(.*?)```", text, re.S)
 new = (m.group(1) if m else text).strip()
 new = re.sub(r"^<!DOCTYPE html>", "<!DOCTYPE html>", new, flags=re.I)
 
 # Базовая проверка целостности документа до сохранения.
-if not re.match(r"(?is)^<!doctype html>\\s*<html\\b", new):
+if not re.match(r"(?is)^<!doctype html>\s*<html\b", new):
     print("Отклонено: ответ не начинается с полноценного HTML-документа")
     sys.exit(0)
-if not re.search(r"(?is)</html>\\s*$", new) or len(new) < len(code) * 0.6:
+if not re.search(r"(?is)</html>\s*$", new) or len(new) < len(code) * 0.6:
     print("Отклонено: HTML неполный или подозрительно короткий")
     sys.exit(0)
 if new.count("<script") != new.count("</script>") or new.count("<style") != new.count("</style>"):
@@ -96,7 +96,7 @@ if missing:
 secret_patterns = [
     r"sk-[A-Za-z0-9]{20,}",
     r"gh[pousr]_[A-Za-z0-9]{20,}",
-    r"AIza[0-9A-Za-z_\\-]{30,}",
+    r"AIza[0-9A-Za-z_\-]{30,}",
 ]
 if any(re.search(pattern, new) for pattern in secret_patterns):
     print("Отклонено: обнаружена строка, похожая на секретный ключ")
@@ -106,5 +106,5 @@ if new == code.strip():
     print("Изменений нет")
     sys.exit(0)
 
-open("index.html", "w", encoding="utf-8").write(new + "\\n")
+open("index.html", "w", encoding="utf-8").write(new + "\n")
 print("Обновлено: HTML прошёл базовые проверки целостности и сохранения функций")
