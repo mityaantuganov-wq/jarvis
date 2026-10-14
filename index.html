@@ -38,10 +38,10 @@ function saveHistory(){try{localStorage.setItem(HISTORY,JSON.stringify([...log.q
 function add(text,kind='jarvis',persist=true){const d=document.createElement('div');d.className='msg '+kind;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;if(persist&&kind!=='system')saveHistory()}
 function speak(text){add('Джарвис: '+text,'jarvis');if('speechSynthesis'in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ru-RU';speechSynthesis.speak(u)}}
 function restore(){const items=read(HISTORY,[]);if(items.length){items.forEach(x=>add(x.text,x.kind,false))}else add('Джарвис запущен. Скажите «команды», чтобы узнать, что я умею.','jarvis',false)}
-function showHelp(){speak('Доступные команды: привет, время, дата, заметка текст, заметки, таймер 5 минут, стоп таймер, очистить чат.')}
+function showHelp(){speak('Доступные команды: привет; который час или сколько времени; какая сегодня дата; заметка текст; покажи заметки; таймер 5 минут; стоп таймер; очистить чат.')}
 function handle(raw){const original=String(raw||'').trim();if(!original)return;add('Вы: '+original,'me');const c=original.toLocaleLowerCase('ru-RU');
 if(/^(привет|здравствуй|здравствуйте|доброе утро|добрый день|добрый вечер)/.test(c)){speak('Здравствуйте, сэр. Я готов к работе.')}
-else if(c.includes('время')){speak('Сейчас '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}))}
+else if(/врем|который час|сколько час|сколько сейчас|текущее время|назови время/.test(c)){speak('Сейчас '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}))}
 else if(c.includes('дата')||c.includes('какой сегодня день')){speak('Сегодня '+new Date().toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}
 else if(c==='команды'||c==='помощь'||c==='что ты умеешь'){showHelp()}
 else if(c.startsWith('заметка ')){const note=original.slice(original.indexOf(' ')+1).trim();if(!note)speak('Напишите текст заметки после слова заметка.');else{const a=read(NOTES,[]);a.push({text:note,date:new Date().toISOString()});try{localStorage.setItem(NOTES,JSON.stringify(a.slice(-200)));speak('Заметка сохранена.')}catch{speak('Не удалось сохранить заметку. Проверьте свободное место в браузере.')}}}
