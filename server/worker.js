@@ -44,7 +44,11 @@ export default {
     const messages = [
       { role: "system", content: "Ты JARVIS — личный русскоязычный ИИ-ассистент. Отвечай полезно, честно и кратко. Не утверждай, что выполнил действия вне чата, если это не подтверждено." },
       ...history.filter(x => x && ["me", "jarvis"].includes(x.kind) && typeof x.text === "string")
-        .map(x => ({ role: x.kind === "me" ? "user" : "assistant", content: x.text.slice(0, 5000) })),
+        .map(x => ({
+          role: x.kind === "me" ? "user" : "assistant",
+          // The UI stores display labels in text; remove them before sending context to the model.
+          content: x.text.replace(/^(?:Вы|Джарвис):\\s*/i, "").slice(0, 5000)
+        })),
       { role: "user", content: body.message.trim() }
     ];
     const base = (env.AI_BASE_URL || "https://api.openai.com/v1/chat/completions").replace(/\/$/, "");
