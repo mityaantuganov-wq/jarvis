@@ -61,7 +61,20 @@ if errors:
     print("\n".join(errors), file=sys.stderr)
     sys.exit(1)
 
-# Node.js is present on GitHub-hosted Ubuntu runners. Syntax-check every inline script.
+# Node.js is present on GitHub-hosted Ubuntu runners. Syntax-check every inline script
+# and the Cloudflare Worker as an ES module before allowing deployment.
+worker_path = Path("server/worker.js")
+if worker_path.is_file():
+    worker_result = subprocess.run(
+        ["node", "--check", "--input-type=module"],
+        input=worker_path.read_text(encoding="utf-8"),
+        text=True,
+        capture_output=True,
+    )
+    if worker_result.returncode:
+        print(f"JavaScript syntax error in server/worker.js:\\n{worker_result.stderr}", file=sys.stderr)
+        sys.exit(worker_result.returncode)
+
 for index, script in enumerate(parser.scripts, start=1):
     with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8", delete=False) as f:
         f.write(script)
@@ -72,4 +85,4 @@ for index, script in enumerate(parser.scripts, start=1):
         print(f"JavaScript syntax error in inline script #{index}:\n{result.stderr}", file=sys.stderr)
         sys.exit(result.returncode)
 
-print("JARVIS validation passed: required features present and inline JavaScript syntax is valid.")
+print("JARVIS validation passed: required features, inline JavaScript, and Worker syntax are valid.")
