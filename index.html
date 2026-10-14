@@ -25,18 +25,18 @@ footer{text-align:center;color:#68879e;font-size:11px;padding:8px 10px 14px}
 <main>
 <div id="log" role="log" aria-live="polite"></div>
 <div id="bar"><input id="inp" autocomplete="off" placeholder="Введите команду…" aria-label="Команда"><button id="mic" title="Голосовой ввод" aria-label="Голосовой ввод">🎙</button><button id="send" title="Отправить" aria-label="Отправить">➤</button></div>
-<div class="tools"><button id="clear">Очистить чат</button><button id="notes">Заметки</button><button id="help">Команды</button></div>
+<div class="tools"><button id="voiceMode" aria-pressed="false">Голосовой диалог: выкл.</button><button id="clear">Очистить чат</button><button id="notes">Заметки</button><button id="help">Команды</button></div>
 </main><footer>История и заметки хранятся только в этом браузере на вашем устройстве.</footer>
 <script>
 (()=> {
 'use strict';
 const $=id=>document.getElementById(id), log=$('log'), inp=$('inp'), status=$('status');
 const HISTORY='jarvis.history.v1', NOTES='jarvis.notes.v1';
-let timerId=null;
+let timerId=null, voiceMode=false, recognition=null, recognitionBusy=false;
 function read(key,fallback){try{const v=JSON.parse(localStorage.getItem(key)||'null');return v??fallback}catch{return fallback}}
 function saveHistory(){try{localStorage.setItem(HISTORY,JSON.stringify([...log.querySelectorAll('.msg:not(.system)')].map(x=>({text:x.textContent,kind:x.classList.contains('me')?'me':'jarvis'})).slice(-150)))}catch{}}
 function add(text,kind='jarvis',persist=true){const d=document.createElement('div');d.className='msg '+kind;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;if(persist&&kind!=='system')saveHistory()}
-function speak(text){add('Джарвис: '+text,'jarvis');if('speechSynthesis'in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ru-RU';speechSynthesis.speak(u)}}
+function speak(text){add('Джарвис: '+text,'jarvis');if('speechSynthesis'in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ru-RU';u.onstart=()=>{if(recognition&&recognitionBusy){try{recognition.stop()}catch{}}};u.onend=()=>{if(voiceMode)setTimeout(startListening,350)};speechSynthesis.speak(u)}else if(voiceMode){setTimeout(startListening,350)}}
 function restore(){const items=read(HISTORY,[]);if(items.length){items.forEach(x=>add(x.text,x.kind,false))}else add('Джарвис запущен. Скажите «команды», чтобы узнать, что я умею.','jarvis',false)}
 function showHelp(){speak('Доступные команды: привет; который час или сколько времени; какая сегодня дата; заметка текст; покажи заметки; таймер 5 минут; стоп таймер; очистить чат.')}
 function handle(raw){const original=String(raw||'').trim();if(!original)return;add('Вы: '+original,'me');const c=original.toLocaleLowerCase('ru-RU');
@@ -54,7 +54,10 @@ $('send').addEventListener('click',()=>{const v=inp.value;inp.value='';handle(v)
 $('clear').addEventListener('click',()=>{if(confirm('Очистить историю чата?')){log.replaceChildren();saveHistory();speak('История чата очищена.')}});
 $('notes').addEventListener('click',()=>handle('заметки'));$('help').addEventListener('click',showHelp);
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-$('mic').addEventListener('click',()=>{if(!SR){speak('Голосовой ввод не поддерживается этим браузером. Попробуйте Chrome.');return}try{const r=new SR();r.lang='ru-RU';r.interimResults=false;r.maxAlternatives=1;status.textContent='Слушаю…';r.onresult=e=>{const t=e.results?.[0]?.[0]?.transcript;if(t)handle(t)};r.onerror=()=>{status.textContent='Голосовой ввод недоступен';add('Не удалось распознать речь. Проверьте разрешение микрофона.','system',false)};r.onend=()=>{status.textContent='Личный ассистент · готов к работе'};r.start()}catch{status.textContent='Личный ассистент · готов к работе';speak('Не удалось запустить микрофон.')}});restore();
+function startListening(){if(!voiceMode||!SR||recognitionBusy)return;try{if(!recognition){recognition=new SR();recognition.lang='ru-RU';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.continuous=false;recognition.onresult=e=>{const t=e.results?.[e.results.length-1]?.[0]?.transcript;if(t)handle(t)};recognition.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){voiceMode=false;updateVoiceButton();status.textContent='Нет доступа к микрофону';add('Разрешите доступ к микрофону в настройках браузера.','system',false)}};recognition.onend=()=>{recognitionBusy=false;if(voiceMode&&!('speechSynthesis'in window&&speechSynthesis.speaking))setTimeout(startListening,500)}}recognitionBusy=true;status.textContent='Голосовой диалог · слушаю…';recognition.start()}catch{recognitionBusy=false;if(voiceMode)setTimeout(startListening,900)}}
+function updateVoiceButton(){$('voiceMode').textContent='Голосовой диалог: '+(voiceMode?'вкл.':'выкл.');$('voiceMode').setAttribute('aria-pressed',String(voiceMode));if(!voiceMode)status.textContent='Личный ассистент · готов к работе'}
+$('voiceMode').addEventListener('click',()=>{if(!SR){speak('Голосовой диалог не поддерживается этим браузером. Попробуйте Chrome.');return}voiceMode=!voiceMode;updateVoiceButton();if(voiceMode){speak('Голосовой диалог включён. Я слушаю вас.')}else{try{recognition?.stop()}catch{}recognitionBusy=false;if('speechSynthesis'in window)speechSynthesis.cancel();status.textContent='Голосовой диалог выключен'}});
+$('mic').addEventListener('click',()=>{if(!SR){speak('Голосовой ввод не поддерживается этим браузером. Попробуйте Chrome.');return}try{const r=new SR();r.lang='ru-RU';r.interimResults=false;r.maxAlternatives=1;status.textContent='Слушаю…';r.onresult=e=>{const t=e.results?.[0]?.[0]?.transcript;if(t)handle(t)};r.onerror=()=>{status.textContent='Голосовой ввод недоступен';add('Не удалось распознать речь. Проверьте разрешение микрофона.','system',false)};r.onend=()=>{if(!voiceMode)status.textContent='Личный ассистент · готов к работе'};r.start()}catch{status.textContent='Личный ассистент · готов к работе';speak('Не удалось запустить микрофон.')}});restore();
 })();
 </script>
 </body>
