@@ -39,7 +39,6 @@ required = {
     "AI settings": 'id="aiSettings"',
     "AI endpoint configuration": "jarvis.ai.endpoint.v1",
     "AI request": "async function askAI",
-    "secure proxy source": "server/worker.js",
     "timer": "таймер",
     "voice input": "SpeechRecognition",
     "speech synthesis": "speechSynthesis",
@@ -48,6 +47,8 @@ required = {
     "help": 'id="help"',
 }
 errors = [f"Missing required feature: {name}" for name, marker in required.items() if marker.lower() not in HTML.lower()]
+if not Path("server/worker.js").is_file():
+    errors.append("Secure AI proxy template is missing: server/worker.js")
 if "</html>" not in HTML.lower():
     errors.append("HTML closing tag is missing")
 
