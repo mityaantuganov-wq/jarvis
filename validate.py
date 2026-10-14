@@ -30,6 +30,8 @@ required = {
     "HTML document": "<!DOCTYPE html>",
     "chat history": "jarvis.history.v1",
     "notes": "jarvis.notes.v1",
+    "backup export": 'id="backup"',
+    "backup data": "exportedAt",
     "timer": "таймер",
     "voice input": "SpeechRecognition",
     "speech synthesis": "speechSynthesis",
