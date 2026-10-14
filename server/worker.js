@@ -15,6 +15,8 @@ function corsHeaders(origin, allowed) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname !== "/api/chat") return new Response("Not found", { status: 404 });
     const origin = request.headers.get("Origin") || "";
     const allowed = env.ALLOWED_ORIGIN || "";
     const headers = corsHeaders(origin, allowed);
