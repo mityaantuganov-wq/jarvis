@@ -1,0 +1,39 @@
+name: Jarvis auto-improve
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  models: read
+  pages: write
+  id-token: write
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ask AI to improve
+        run: python improve.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit
+        run: |
+          git config user.name "jarvis-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add index.html
+          git commit -m "auto $(date +%F_%H-%M)" || echo "Нет изменений"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - uses: actions/deploy-pages@v4
