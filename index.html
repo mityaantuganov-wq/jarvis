@@ -25,7 +25,7 @@ footer{text-align:center;color:#68879e;font-size:11px;padding:8px 10px 14px}
 <main>
 <div id="log" role="log" aria-live="polite"></div>
 <div id="bar"><input id="inp" autocomplete="off" placeholder="Введите команду…" aria-label="Команда"><button id="mic" title="Голосовой ввод" aria-label="Голосовой ввод">🎙</button><button id="send" title="Отправить" aria-label="Отправить">➤</button></div>
-<div class="tools"><button id="voiceMode" aria-pressed="false">Голосовой диалог: выкл.</button><button id="clear">Очистить чат</button><button id="notes">Заметки</button><button id="help">Команды</button></div>
+<div class="tools"><button id="voiceMode" aria-pressed="false">Голосовой диалог: выкл.</button><button id="clear">Очистить чат</button><button id="notes">Заметки</button><button id="backup">Резервная копия</button><button id="help">Команды</button></div>
 </main><footer>История и заметки хранятся только в этом браузере на вашем устройстве.</footer>
 <script>
 (()=> {
@@ -53,7 +53,18 @@ else if(c==='очистить чат'){log.replaceChildren();saveHistory();speak
 else{speak('Пока не знаю такую команду. Скажите «команды», чтобы посмотреть список возможностей.')}}
 $('send').addEventListener('click',()=>{const v=inp.value;inp.value='';handle(v);inp.focus()});inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('send').click()}});
 $('clear').addEventListener('click',()=>{if(confirm('Очистить историю чата?')){log.replaceChildren();saveHistory();speak('История чата очищена.')}});
-$('notes').addEventListener('click',()=>handle('заметки'));$('help').addEventListener('click',showHelp);
+$('notes').addEventListener('click',()=>handle('заметки'));
+$('backup').addEventListener('click',()=>{
+  try{
+    const data={app:'JARVIS',version:1,exportedAt:new Date().toISOString(),history:read(HISTORY,[]),notes:read(NOTES,[])};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='jarvis-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    add('Резервная копия истории и заметок подготовлена.','system',false);
+  }catch{add('Не удалось создать резервную копию. Проверьте настройки браузера.','system',false)}
+});
+$('help').addEventListener('click',showHelp);
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 function startListening(){if(!voiceMode||!SR||recognitionBusy)return;try{if(!recognition){recognition=new SR();recognition.lang='ru-RU';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.continuous=false;recognition.onresult=e=>{const t=e.results?.[e.results.length-1]?.[0]?.transcript;if(t)handle(t)};recognition.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){voiceMode=false;updateVoiceButton();status.textContent='Нет доступа к микрофону';add('Разрешите доступ к микрофону в настройках браузера.','system',false)}};recognition.onend=()=>{recognitionBusy=false;if(voiceMode&&!('speechSynthesis'in window&&speechSynthesis.speaking))setTimeout(startListening,500)}}recognitionBusy=true;status.textContent='Голосовой диалог · слушаю…';recognition.start()}catch{recognitionBusy=false;if(voiceMode)setTimeout(startListening,900)}}
 function updateVoiceButton(){$('voiceMode').textContent='Голосовой диалог: '+(voiceMode?'вкл.':'выкл.');$('voiceMode').setAttribute('aria-pressed',String(voiceMode));if(!voiceMode)status.textContent='Личный ассистент · готов к работе'}
