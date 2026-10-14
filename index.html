@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Джарвис</title>
+<style>
+body{margin:0;background:#0a0f1a;color:#5fd3ff;font-family:sans-serif;display:flex;flex-direction:column;height:100vh}
+#log{flex:1;overflow-y:auto;padding:16px}
+.me{color:#fff;margin:8px 0}.j{margin:8px 0}
+#bar{display:flex;gap:8px;padding:12px}
+input{flex:1;padding:12px;border-radius:8px;border:none;font-size:16px}
+button{padding:12px 16px;border-radius:8px;border:none;background:#5fd3ff;font-size:18px}
+</style>
+</head>
+<body>
+<div id="log"></div>
+<div id="bar">
+  <input id="inp" placeholder="Команда...">
+  <button id="mic">🎤</button>
+  <button id="send">➤</button>
+</div>
+<script>
+const log=document.getElementById('log'), inp=document.getElementById('inp');
+function add(t,c){const d=document.createElement('div');d.className=c;d.textContent=t;log.appendChild(d);log.scrollTop=1e9}
+function say(t){add('Джарвис: '+t,'j');const u=new SpeechSynthesisUtterance(t);u.lang='ru-RU';speechSynthesis.speak(u)}
+function handle(cmd){
+  cmd=cmd.trim().toLowerCase(); if(!cmd)return;
+  add('Вы: '+cmd,'me');
+  if(cmd.includes('привет')) say('Здравствуйте, сэр.');
+  else if(cmd.includes('время')) say('Сейчас '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}));
+  else say('Команда не распознана.');
+}
+document.getElementById('send').onclick=()=>{handle(inp.value);inp.value=''};
+inp.onkeydown=e=>{if(e.key==='Enter'){handle(inp.value);inp.value=''}};
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+document.getElementById('mic').onclick=()=>{
+  if(!SR)return say('Голосовой ввод не поддерживается.');
+  const r=new SR();r.lang='ru-RU';r.onresult=e=>handle(e.results[0][0].transcript);r.start();
+};
+say('Джарвис запущен.');
+</script>
+</body>
+</html>
