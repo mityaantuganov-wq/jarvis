@@ -29,3 +29,12 @@ jobs:
 
       - name: Check JARVIS HTML and JavaScript
         run: python validate.py
+
+      - name: Install browser test dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test core app behavior
+        run: npm run test:e2e
