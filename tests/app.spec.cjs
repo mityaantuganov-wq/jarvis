@@ -1,11 +1,9 @@
 const { test, expect } = require('@playwright/test');
-const path = require('path');
-const { pathToFileURL } = require('url');
-
-const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
 
 test.beforeEach(async ({ page }) => {
-  await page.goto(appUrl);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
   page.on('dialog', dialog => dialog.accept());
 });
 
