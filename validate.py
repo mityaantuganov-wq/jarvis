@@ -68,7 +68,7 @@ if duplicates:
     errors.append("Duplicate HTML id values: " + ", ".join(duplicates))
 
 script_source = "\n".join(parser.scripts)
-referenced_ids = set(re.findall(r'''$\(\s*['"]([^'"]+)['"]\s*\)''', script_source))
+referenced_ids = set(re.findall(r'''\$\(\s*['"]([^'"]+)['"]\s*\)''', script_source))
 missing_ids = sorted(referenced_ids - set(parser.ids))
 if missing_ids:
     errors.append("JavaScript references missing HTML ids: " + ", ".join(missing_ids))
