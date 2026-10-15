@@ -3,6 +3,7 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
+import re
 import sys
 import tempfile
 
@@ -14,7 +15,11 @@ class Scripts(HTMLParser):
         self.in_script = False
         self.current = []
         self.scripts = []
+        self.ids = []
     def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if attrs.get("id"):
+            self.ids.append(attrs["id"])
         if tag.lower() == "script":
             self.in_script = True
             self.current = []
@@ -57,6 +62,17 @@ parser.feed(HTML)
 if not parser.scripts:
     errors.append("No JavaScript script block found")
 
+# Catch duplicate HTML IDs and references to missing elements used by $('id').
+duplicates = sorted({item for item in parser.ids if parser.ids.count(item) > 1})
+if duplicates:
+    errors.append("Duplicate HTML id values: " + ", ".join(duplicates))
+
+script_source = "\\n".join(parser.scripts)
+referenced_ids = set(re.findall(r"\\$\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)", script_source))
+missing_ids = sorted(referenced_ids - set(parser.ids))
+if missing_ids:
+    errors.append("JavaScript references missing HTML ids: " + ", ".join(missing_ids))
+
 if errors:
     print("\n".join(errors), file=sys.stderr)
     sys.exit(1)
@@ -85,4 +101,4 @@ for index, script in enumerate(parser.scripts, start=1):
         print(f"JavaScript syntax error in inline script #{index}:\n{result.stderr}", file=sys.stderr)
         sys.exit(result.returncode)
 
-print("JARVIS validation passed: required features, inline JavaScript, and Worker syntax are valid.")
+print("JARVIS validation passed: required features, unique HTML ids, JavaScript element references, inline JavaScript, and Worker syntax are valid.")
