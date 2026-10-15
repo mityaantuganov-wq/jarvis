@@ -1,0 +1,12 @@
+{
+  "name": "jarvis-browser-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Browser smoke tests for the JARVIS web app",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
