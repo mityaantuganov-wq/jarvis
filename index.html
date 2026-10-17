@@ -107,7 +107,7 @@ $('restoreFile').addEventListener('change',async e=>{
     restore();
     add('Резервная копия восстановлена.','system',false);
   }catch(err){
-    const message=err&&err.message==='size'?'Файл больше 2 МБ.':err&&['format','count','history','notes'].includes(err.message)?'Файл не похож на корректную резервную копию JARVIS версии 1.':'Не удалось сохранить данные. Проверьте свободное место браузера.';
+    const message=err&&err.message==='size'?'Файл больше 2 МБ.':err instanceof SyntaxError?'Файл содержит некорректный JSON.':err&&['format','count','history','notes'].includes(err.message)?'Файл не похож на корректную резервную копию JARVIS версии 1.':'Не удалось сохранить данные. Проверьте свободное место браузера.';
     add('Не удалось восстановить копию. '+message,'system',false);
   }finally{e.target.value=''}
 });
