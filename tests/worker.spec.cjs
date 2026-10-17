@@ -97,6 +97,29 @@ test('accepts a matching configured access token', async () => {
   assert.deepEqual(await json(response), { reply: 'ok' });
 });
 
+test('rejects an incorrect access token before calling the provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request({ token: 'wrong-token' }), { ...env, JARVIS_ACCESS_TOKEN: 'secret-token' });
+  assert.equal(response.status, 401);
+  assert.deepEqual(await json(response), { error: 'unauthorized' });
+  assert.equal(called, false);
+});
+
+test('allows Authorization in CORS preflight for the configured origin', async () => {
+  const response = await handler.fetch(new Request('https://worker.example/api/chat', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: env.ALLOWED_ORIGIN,
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'authorization, content-type'
+    }
+  }), env);
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), env.ALLOWED_ORIGIN);
+  assert.match(response.headers.get('Access-Control-Allow-Headers'), /Authorization/i);
+});
+
 test('rejects malformed JSON and empty messages', async () => {
   const malformed = await handler.fetch(request({ body: '{' }), env);
   assert.equal(malformed.status, 400);
