@@ -19,3 +19,7 @@ The code uses Cloudflare's `CF-Connecting-IP` header as the rate-limit key. If t
 - Origin checks and CORS are not authentication: non-browser clients can forge an `Origin` header. If the endpoint becomes public, add an appropriate authentication or abuse-prevention layer.
 - Cloudflare's rate-limiting behavior is approximate and may take time to propagate. Verify the current binding options and limits in your Cloudflare account before relying on them.
 - Do not log API keys or full chat content while debugging rate limits.
+
+## Prompt cost guardrail
+
+The Worker also caps forwarded chat history at 12,000 characters total, considers at most the latest 12 history entries, and limits each history entry to 2,000 characters. The current message is validated separately (up to 8,000 characters). These character limits reduce oversized prompts but are not a precise token or dollar budget; provider-side spending limits and alerts are still required.
