@@ -108,7 +108,6 @@ test('rejects a modified version 2 backup and preserves current notes', async ({
     notes: [{ text: 'подменённая запись', date: '' }],
     checksum: '0'.repeat(64)
   };
-  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Восстановить копию' }).click();
   await page.locator('#restoreFile').setInputFiles({
     name: 'tampered-backup.json',
