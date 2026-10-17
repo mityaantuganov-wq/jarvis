@@ -80,3 +80,43 @@ test('invalid note entries are rejected without replacing current notes', async 
   await page.locator('#send').click();
   await expect(page.locator('#log')).toContainText('оставить эту запись');
 });
+
+test('exports version 2 backup with a SHA-256 integrity checksum', async ({ page }) => {
+  await page.evaluate(() => {
+    const original = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = blob => {
+      window.__jarvisBackupBlob = blob;
+      return original(blob);
+    };
+  });
+  await page.getByRole('button', { name: 'Резервная копия' }).click();
+  await expect(page.locator('#log')).toContainText('Резервная копия истории и заметок подготовлена');
+  const data = await page.evaluate(async () => JSON.parse(await window.__jarvisBackupBlob.text()));
+  expect(data.app).toBe('JARVIS');
+  expect(data.version).toBe(2);
+  expect(data.checksum).toMatch(/^[a-f0-9]{64}$/);
+});
+
+test('rejects a modified version 2 backup and preserves current notes', async ({ page }) => {
+  await page.locator('#inp').fill('заметка оставить эту запись');
+  await page.locator('#send').click();
+  const backup = {
+    app: 'JARVIS',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    history: [],
+    notes: [{ text: 'подменённая запись', date: '' }],
+    checksum: '0'.repeat(64)
+  };
+  await page.getByRole('button', { name: 'Восстановить копию' }).click();
+  await page.locator('#restoreFile').setInputFiles({
+    name: 'tampered-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+  await expect(page.locator('#log')).toContainText('Контрольная сумма не совпадает');
+  await page.locator('#inp').fill('покажи заметки');
+  await page.locator('#send').click();
+  await expect(page.locator('#log')).toContainText('оставить эту запись');
+  await expect(page.locator('#log')).not.toContainText('подменённая запись');
+});
