@@ -61,6 +61,29 @@ test('uses configured rate limiting binding before calling provider', async () =
   assert.equal(called, false);
 });
 
+test('allows a request through when configured rate limiting succeeds', async () => {
+  let key;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  const rateEnv = {
+    ...env,
+    RATE_LIMITER: {
+      async limit(options) {
+        key = options.key;
+        return { success: true };
+      }
+    }
+  };
+  const response = await handler.fetch(request({ ip: '203.0.113.11' }), rateEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await json(response), { reply: 'ok' });
+  assert.equal(key, '203.0.113.11');
+  assert.equal(called, true);
+});
+
 test('fails closed when configured rate limiting binding is unavailable', async () => {
   let called = false;
   globalThis.fetch = async () => { called = true; };
@@ -118,6 +141,18 @@ test('allows Authorization in CORS preflight for the configured origin', async (
   assert.equal(response.status, 204);
   assert.equal(response.headers.get('Access-Control-Allow-Origin'), env.ALLOWED_ORIGIN);
   assert.match(response.headers.get('Access-Control-Allow-Headers'), /Authorization/i);
+});
+
+test('rejects CORS preflight from a disallowed origin', async () => {
+  const response = await handler.fetch(new Request('https://worker.example/api/chat', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://evil.example',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'authorization, content-type'
+    }
+  }), env);
+  assert.equal(response.status, 403);
 });
 
 test('rejects malformed JSON and empty messages', async () => {
