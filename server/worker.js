@@ -113,6 +113,18 @@ export default {
       return new Response(JSON.stringify({ error: "server_not_configured" }), { status: 503, headers });
     }
 
+    // Provider credentials and private chat content must only travel over HTTPS.
+    // Reject URLs with embedded credentials rather than accepting ambiguous config.
+    let providerUrl;
+    try {
+      providerUrl = new URL(env.AI_BASE_URL || "https://api.openai.com/v1/chat/completions");
+    } catch {
+      return new Response(JSON.stringify({ error: "invalid_provider_configuration" }), { status: 503, headers });
+    }
+    if (providerUrl.protocol !== "https:" || providerUrl.username || providerUrl.password) {
+      return new Response(JSON.stringify({ error: "invalid_provider_configuration" }), { status: 503, headers });
+    }
+
     // Optional Cloudflare Rate Limiting binding. When configured, fail closed on
     // missing client IP or binding errors so provider spend is not silently unprotected.
     if (env.RATE_LIMITER) {
@@ -167,7 +179,7 @@ export default {
       ...boundedHistory,
       { role: "user", content: body.message.trim() }
     ];
-    const base = (env.AI_BASE_URL || "https://api.openai.com/v1/chat/completions").replace(/\/$/, "");
+    const base = providerUrl.toString().replace(/\/$/, "");
     const configuredTimeout = Number(env.AI_TIMEOUT_MS);
     const timeoutMs = Math.min(Math.max(configuredTimeout || 20000, 1000), 30000);
     const controller = new AbortController();
@@ -179,7 +191,8 @@ export default {
         method: "POST",
         headers: { "Authorization": "Bearer " + env.AI_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ model: env.AI_MODEL, messages, temperature: 0.4, max_tokens: 900 }),
-        signal: controller.signal
+        signal: controller.signal,
+        redirect: "error"
       });
       if (!upstream.ok) {
         return new Response(JSON.stringify({ error: "provider_error" }), { status: 502, headers });

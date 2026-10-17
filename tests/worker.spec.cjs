@@ -38,6 +38,24 @@ test('returns a configuration error when provider credentials are missing', asyn
   assert.equal((await json(response)).error, 'server_not_configured');
 });
 
+test('rejects an insecure provider URL before calling provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request(), { ...env, AI_BASE_URL: 'http://provider.example/v1/chat/completions' });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await json(response), { error: 'invalid_provider_configuration' });
+  assert.equal(called, false);
+});
+
+test('rejects provider URLs with embedded credentials before calling provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request(), { ...env, AI_BASE_URL: 'https://user:password@provider.example/v1/chat/completions' });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await json(response), { error: 'invalid_provider_configuration' });
+  assert.equal(called, false);
+});
+
 test('uses configured rate limiting binding before calling provider', async () => {
   let key;
   let called = false;
