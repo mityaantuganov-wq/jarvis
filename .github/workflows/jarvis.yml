@@ -34,7 +34,7 @@ jobs:
       - name: Ask AI to improve
         run: python improve.py
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODEL_TOKEN: ${{ secrets.MODEL_TOKEN }}
 
       - name: Validate HTML and JavaScript
         run: python validate.py

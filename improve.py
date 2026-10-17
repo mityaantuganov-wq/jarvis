@@ -2,9 +2,9 @@ import os, json, re, sys, time, urllib.request, urllib.error
 
 code = open("index.html", encoding="utf-8").read()
 todo = open("TODO.md", encoding="utf-8").read()
-token = os.environ.get("MODEL_TOKEN") or os.environ.get("GITHUB_TOKEN")
+token = os.environ.get("MODEL_TOKEN")
 if not token:
-    print("Нет токена GitHub Models; безопасно пропускаю запуск")
+    print("Нет отдельного MODEL_TOKEN для GitHub Models; безопасно пропускаю запуск")
     sys.exit(0)
 
 prompt = (
