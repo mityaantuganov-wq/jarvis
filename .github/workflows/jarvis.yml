@@ -48,6 +48,9 @@ jobs:
       - name: Test core app behavior
         run: npm run test:e2e
 
+      - name: Test Worker validation, history, and timeout handling
+        run: npm run test:worker
+
       - name: Propose changes for review
         uses: peter-evans/create-pull-request@v7
         with:
@@ -64,5 +67,6 @@ jobs:
             Before this PR was created, the workflow ran:
             - HTML and JavaScript validation (`python validate.py`)
             - Playwright browser tests (`npm run test:e2e`)
+            - Worker validation and timeout tests (`npm run test:worker`)
 
             Review the diff before merging. This workflow does not deploy or write the generated change directly to `main`.
