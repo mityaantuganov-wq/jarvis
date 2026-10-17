@@ -2,9 +2,10 @@
   "name": "jarvis-browser-tests",
   "private": true,
   "version": "1.0.0",
-  "description": "Browser smoke tests for the JARVIS web app",
+  "description": "Browser and server-worker tests for the JARVIS web app",
   "scripts": {
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:worker": "node --test tests/worker.spec.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
