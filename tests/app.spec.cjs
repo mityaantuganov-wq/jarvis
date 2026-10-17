@@ -175,3 +175,46 @@ test('does not prefill an old access token when the AI endpoint changes', async 
   expect(result.endpoint).toBe('https://new-worker.example/api/chat');
   expect(result.token).toBeNull();
 });
+
+
+test('restores original history and notes if saving the new notes fails', async ({ page }) => {
+  const originalHistory = [{ text: 'исходная история', kind: 'me' }];
+  const originalNotes = [{ text: 'исходная заметка', date: '2026-10-16T00:00:00.000Z' }];
+
+  await page.evaluate(({ history, notes }) => {
+    localStorage.setItem('jarvis.history.v1', JSON.stringify(history));
+    localStorage.setItem('jarvis.notes.v1', JSON.stringify(notes));
+    const originalSetItem = Storage.prototype.setItem;
+    let failedOnce = false;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'jarvis.notes.v1' && !failedOnce) {
+        failedOnce = true;
+        throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      }
+      return originalSetItem.call(this, key, value);
+    };
+  }, { history: originalHistory, notes: originalNotes });
+
+  const backup = {
+    app: 'JARVIS',
+    version: 1,
+    exportedAt: '2026-10-17T00:00:00.000Z',
+    history: [{ text: 'новая история из копии', kind: 'me' }],
+    notes: [{ text: 'новая заметка из копии', date: '2026-10-17T00:00:00.000Z' }]
+  };
+
+  await page.getByRole('button', { name: 'Восстановить копию' }).click();
+  await page.locator('#restoreFile').setInputFiles({
+    name: 'rollback-test-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+
+  await expect(page.locator('#log')).toContainText('Не удалось восстановить копию');
+  const saved = await page.evaluate(() => ({
+    history: JSON.parse(localStorage.getItem('jarvis.history.v1')),
+    notes: JSON.parse(localStorage.getItem('jarvis.notes.v1'))
+  }));
+  expect(saved.history).toEqual(originalHistory);
+  expect(saved.notes).toEqual(originalNotes);
+});
