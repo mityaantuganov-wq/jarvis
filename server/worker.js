@@ -100,15 +100,29 @@ export default {
     if (!body || typeof body.message !== "string" || !body.message.trim() || body.message.length > 8000) {
       return new Response(JSON.stringify({ error: "invalid_message" }), { status: 400, headers });
     }
+    // Bound prompt cost independently of the 64 KiB transport limit.
     const history = Array.isArray(body.history) ? body.history.slice(-12) : [];
+    const normalizedHistory = history
+      .filter(x => x && ["me", "jarvis"].includes(x.kind) && typeof x.text === "string")
+      .map(x => ({
+        role: x.kind === "me" ? "user" : "assistant",
+        // The UI stores display labels in text; remove them before sending context to the model.
+        content: x.text.replace(/^(?:Вы|Джарвис):\s*/i, "").slice(0, 2000)
+      }));
+    const boundedHistory = [];
+    let remainingHistoryChars = 12000;
+    for (let i = normalizedHistory.length - 1; i >= 0 && remainingHistoryChars > 0; i--) {
+      const item = normalizedHistory[i];
+      const content = item.content.slice(-remainingHistoryChars);
+      if (content) {
+        boundedHistory.push({ role: item.role, content });
+        remainingHistoryChars -= content.length;
+      }
+    }
+    boundedHistory.reverse();
     const messages = [
       { role: "system", content: "Ты JARVIS — личный русскоязычный ИИ-ассистент. Отвечай полезно, честно и кратко. Не утверждай, что выполнил действия вне чата, если это не подтверждено." },
-      ...history.filter(x => x && ["me", "jarvis"].includes(x.kind) && typeof x.text === "string")
-        .map(x => ({
-          role: x.kind === "me" ? "user" : "assistant",
-          // The UI stores display labels in text; remove them before sending context to the model.
-          content: x.text.replace(/^(?:Вы|Джарвис):\s*/i, "").slice(0, 5000)
-        })),
+      ...boundedHistory,
       { role: "user", content: body.message.trim() }
     ];
     const base = (env.AI_BASE_URL || "https://api.openai.com/v1/chat/completions").replace(/\/$/, "");
