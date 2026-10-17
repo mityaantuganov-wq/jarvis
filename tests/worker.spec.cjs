@@ -11,9 +11,10 @@ test.before(async () => {
 });
 
 const env = { ALLOWED_ORIGIN: 'https://jarvis.example', AI_API_KEY: 'test-key', AI_MODEL: 'test-model' };
-function request({ method = 'POST', origin = 'https://jarvis.example', body = '{"message":"hello"}', path: pathname = '/api/chat', ip } = {}) {
+function request({ method = 'POST', origin = 'https://jarvis.example', body = '{"message":"hello"}', path: pathname = '/api/chat', ip, token } = {}) {
   const headers = { Origin: origin, 'Content-Type': 'application/json' };
   if (ip) headers['CF-Connecting-IP'] = ip;
+  if (token) headers.Authorization = 'Bearer ' + token;
   return new Request('https://worker.example' + pathname, {
     method,
     headers,
@@ -78,6 +79,22 @@ test('requires client IP when rate limiting is configured', async () => {
   const response = await handler.fetch(request(), rateEnv);
   assert.equal(response.status, 503);
   assert.equal((await json(response)).error, 'rate_limit_unavailable');
+});
+
+test('requires the configured access token before calling the provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request(), { ...env, JARVIS_ACCESS_TOKEN: 'secret-token' });
+  assert.equal(response.status, 401);
+  assert.deepEqual(await json(response), { error: 'unauthorized' });
+  assert.equal(called, false);
+});
+
+test('accepts a matching configured access token', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  const response = await handler.fetch(request({ token: 'secret-token' }), { ...env, JARVIS_ACCESS_TOKEN: 'secret-token' });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await json(response), { reply: 'ok' });
 });
 
 test('rejects malformed JSON and empty messages', async () => {

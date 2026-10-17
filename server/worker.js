@@ -1,5 +1,5 @@
 // Cloudflare Worker: OpenAI-compatible secure proxy for JARVIS.
-// Configure AI_API_KEY, AI_MODEL, ALLOWED_ORIGIN as Worker secrets/variables.
+// Configure AI_API_KEY, AI_MODEL, ALLOWED_ORIGIN; optionally set JARVIS_ACCESS_TOKEN as a secret.
 // Optional AI_BASE_URL defaults to OpenAI's Chat Completions endpoint.
 // Optional AI_TIMEOUT_MS sets the upstream timeout (clamped to 1–30 seconds).
 
@@ -78,7 +78,7 @@ function corsHeaders(origin, allowed) {
   return {
     "Access-Control-Allow-Origin": origin === allowed ? allowed : "null",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Vary": "Origin",
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store"
@@ -101,6 +101,13 @@ export default {
     }
     if (!allowed || origin !== allowed) {
       return new Response(JSON.stringify({ error: "origin_not_allowed" }), { status: 403, headers });
+    }
+    const expectedAccessToken = env.JARVIS_ACCESS_TOKEN || "";
+    if (expectedAccessToken) {
+      const authorization = request.headers.get("Authorization") || "";
+      if (authorization !== "Bearer " + expectedAccessToken) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers });
+      }
     }
     if (!env.AI_API_KEY || !env.AI_MODEL) {
       return new Response(JSON.stringify({ error: "server_not_configured" }), { status: 503, headers });
