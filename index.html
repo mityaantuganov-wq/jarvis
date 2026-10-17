@@ -63,9 +63,14 @@ else{askAI(original)}}
 $('send').addEventListener('click',()=>{const v=inp.value;inp.value='';handle(v);inp.focus()});inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('send').click()}});
 $('clear').addEventListener('click',()=>{if(confirm('Очистить историю чата?')){log.replaceChildren();saveHistory();speak('История чата очищена.')}});
 $('notes').addEventListener('click',()=>handle('заметки'));
-$('backup').addEventListener('click',()=>{
+$('backup').addEventListener('click',async()=>{
   try{
-    const data={app:'JARVIS',version:1,exportedAt:new Date().toISOString(),history:read(HISTORY,[]),notes:read(NOTES,[])};
+    if(!window.crypto||!crypto.subtle)throw new Error('integrity-unavailable');
+    const payload={app:'JARVIS',version:2,exportedAt:new Date().toISOString(),history:read(HISTORY,[]),notes:read(NOTES,[])};
+    const bytes=new TextEncoder().encode(JSON.stringify(payload));
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    const checksum=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+    const data={...payload,checksum};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download='jarvis-backup-'+new Date().toISOString().slice(0,10)+'.json';
@@ -84,7 +89,14 @@ $('restoreFile').addEventListener('change',async e=>{
   try{
     if(file.size>2*1024*1024)throw new Error('size');
     const data=JSON.parse(await file.text());
-    if(!data||data.app!=='JARVIS'||data.version!==1||!Array.isArray(data.history)||!Array.isArray(data.notes))throw new Error('format');
+    if(!data||data.app!=='JARVIS'||![1,2].includes(data.version)||!Array.isArray(data.history)||!Array.isArray(data.notes))throw new Error('format');
+    if(data.version===2){
+      if(typeof data.checksum!=='string'||!/^[a-f0-9]{64}$/.test(data.checksum)||!window.crypto||!crypto.subtle)throw new Error('integrity');
+      const payload={app:data.app,version:data.version,exportedAt:data.exportedAt,history:data.history,notes:data.notes};
+      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(payload)));
+      const actual=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+      if(actual!==data.checksum)throw new Error('integrity');
+    }
     if(data.history.length>150||data.notes.length>200)throw new Error('count');
     const history=data.history.map(item=>{
       if(!item||typeof item.text!=='string'||item.text.length>5000||!['me','jarvis'].includes(item.kind))throw new Error('history');
@@ -107,7 +119,7 @@ $('restoreFile').addEventListener('change',async e=>{
     restore();
     add('Резервная копия восстановлена.','system',false);
   }catch(err){
-    const message=err&&err.message==='size'?'Файл больше 2 МБ.':err instanceof SyntaxError?'Файл содержит некорректный JSON.':err&&['format','count','history','notes'].includes(err.message)?'Файл не похож на корректную резервную копию JARVIS версии 1.':'Не удалось сохранить данные. Проверьте свободное место браузера.';
+    const message=err&&err.message==='size'?'Файл больше 2 МБ.':err instanceof SyntaxError?'Файл содержит некорректный JSON.':err&&err.message==='integrity'?'Контрольная сумма не совпадает. Файл повреждён или был изменён.':err&&err.message==='integrity-unavailable'?'Браузер не поддерживает создание контрольной суммы.':err&&['format','count','history','notes'].includes(err.message)?'Файл не похож на корректную резервную копию JARVIS версии 1 или 2.':'Не удалось сохранить данные. Проверьте свободное место браузера.';
     add('Не удалось восстановить копию. '+message,'system',false);
   }finally{e.target.value=''}
 });
