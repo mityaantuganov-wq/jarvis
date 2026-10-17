@@ -311,3 +311,25 @@ test('returns a generic error when provider response body cannot be read', async
   assert.equal(response.status, 502);
   assert.deepEqual(await json(response), { error: 'provider_unreachable' });
 });
+
+test('rejects messages over the character limit before calling provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request({
+    body: JSON.stringify({ message: 'x'.repeat(8001) })
+  }), env);
+  assert.equal(response.status, 400);
+  assert.deepEqual(await json(response), { error: 'invalid_message' });
+  assert.equal(called, false);
+});
+
+test('caps provider output tokens to the configured application limit', async () => {
+  let sent;
+  globalThis.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 200);
+  assert.equal(sent.max_tokens, 900);
+});
