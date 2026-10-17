@@ -38,3 +38,6 @@ jobs:
 
       - name: Test core app behavior
         run: npm run test:e2e
+
+      - name: Test Worker validation, history, and timeout handling
+        run: npm run test:worker
