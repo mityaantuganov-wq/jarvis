@@ -286,3 +286,27 @@ test('returns a generic error for malformed provider JSON', async () => {
   assert.equal(response.status, 502);
   assert.deepEqual(await json(response), { error: 'invalid_provider_response' });
 });
+
+test('does not expose provider network or redirect errors', async () => {
+  globalThis.fetch = async () => { throw new TypeError('redirect blocked: sensitive upstream URL details'); };
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: 'provider_unreachable' });
+  assert.doesNotMatch(await response.clone().text(), /sensitive upstream URL details/);
+});
+
+test('returns a generic error when provider response has no usable reply', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [] }), { status: 200 });
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: 'empty_provider_response' });
+});
+
+test('returns a generic error when provider response body cannot be read', async () => {
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) { controller.error(new Error('sensitive body stream details')); }
+  }), { status: 200 });
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: 'provider_unreachable' });
+});
