@@ -11,10 +11,12 @@ test.before(async () => {
 });
 
 const env = { ALLOWED_ORIGIN: 'https://jarvis.example', AI_API_KEY: 'test-key', AI_MODEL: 'test-model' };
-function request({ method = 'POST', origin = 'https://jarvis.example', body = '{"message":"hello"}', path: pathname = '/api/chat' } = {}) {
+function request({ method = 'POST', origin = 'https://jarvis.example', body = '{"message":"hello"}', path: pathname = '/api/chat', ip } = {}) {
+  const headers = { Origin: origin, 'Content-Type': 'application/json' };
+  if (ip) headers['CF-Connecting-IP'] = ip;
   return new Request('https://worker.example' + pathname, {
     method,
-    headers: { Origin: origin, 'Content-Type': 'application/json' },
+    headers,
     body: method === 'GET' || method === 'OPTIONS' ? undefined : body
   });
 }
@@ -33,6 +35,49 @@ test('returns a configuration error when provider credentials are missing', asyn
   const response = await handler.fetch(request(), { ALLOWED_ORIGIN: env.ALLOWED_ORIGIN });
   assert.equal(response.status, 503);
   assert.equal((await json(response)).error, 'server_not_configured');
+});
+
+test('uses configured rate limiting binding before calling provider', async () => {
+  let key;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  const rateEnv = {
+    ...env,
+    RATE_LIMITER: {
+      async limit(options) {
+        key = options.key;
+        return { success: false };
+      }
+    }
+  };
+  const response = await handler.fetch(request({ ip: '203.0.113.9' }), rateEnv);
+  assert.equal(response.status, 429);
+  assert.equal((await json(response)).error, 'rate_limited');
+  assert.equal(key, '203.0.113.9');
+  assert.equal(called, false);
+});
+
+test('fails closed when configured rate limiting binding is unavailable', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const rateEnv = {
+    ...env,
+    RATE_LIMITER: { async limit() { throw new Error('binding unavailable'); } }
+  };
+  const response = await handler.fetch(request({ ip: '203.0.113.10' }), rateEnv);
+  assert.equal(response.status, 503);
+  assert.equal((await json(response)).error, 'rate_limit_unavailable');
+  assert.equal(called, false);
+});
+
+test('requires client IP when rate limiting is configured', async () => {
+  const rateEnv = { ...env, RATE_LIMITER: { async limit() { return { success: true }; } } };
+  const response = await handler.fetch(request(), rateEnv);
+  assert.equal(response.status, 503);
+  assert.equal((await json(response)).error, 'rate_limit_unavailable');
 });
 
 test('rejects malformed JSON and empty messages', async () => {
