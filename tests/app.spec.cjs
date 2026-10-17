@@ -97,6 +97,34 @@ test('exports version 2 backup with a SHA-256 integrity checksum', async ({ page
   expect(data.checksum).toMatch(/^[a-f0-9]{64}$/);
 });
 
+test('restores a valid version 2 backup after verifying its checksum', async ({ page }) => {
+  const backup = await page.evaluate(async () => {
+    const payload = {
+      app: 'JARVIS',
+      version: 2,
+      exportedAt: '2026-10-17T00:00:00.000Z',
+      history: [{ text: 'Вы: сообщение из проверенной копии', kind: 'me' }],
+      notes: [{ text: 'заметка из проверенной копии', date: '2026-10-17T00:00:00.000Z' }]
+    };
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+    const checksum = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    return { ...payload, checksum };
+  });
+
+  await page.getByRole('button', { name: 'Восстановить копию' }).click();
+  await page.locator('#restoreFile').setInputFiles({
+    name: 'valid-version-2-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+
+  await expect(page.locator('#log')).toContainText('Резервная копия восстановлена');
+  await expect(page.locator('#log')).toContainText('сообщение из проверенной копии');
+  await page.locator('#inp').fill('покажи заметки');
+  await page.locator('#send').click();
+  await expect(page.locator('#log')).toContainText('заметка из проверенной копии');
+});
+
 test('rejects a modified version 2 backup and preserves current notes', async ({ page }) => {
   await page.locator('#inp').fill('заметка оставить эту запись');
   await page.locator('#send').click();
