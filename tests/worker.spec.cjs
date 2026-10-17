@@ -113,6 +113,26 @@ test('strips display labels from history before forwarding it', async () => {
   assert.equal(sent.messages[2].content, 'previous answer');
 });
 
+test('caps total history context while keeping the latest entries', async () => {
+  let sent;
+  globalThis.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  const history = Array.from({ length: 12 }, (_, i) => ({
+    kind: i % 2 === 0 ? 'me' : 'jarvis',
+    text: (i % 2 === 0 ? 'Вы: ' : 'Джарвис: ') + String(i).repeat(3000)
+  }));
+  const response = await handler.fetch(request({
+    body: JSON.stringify({ message: 'current question', history })
+  }), env);
+  assert.equal(response.status, 200);
+  const context = sent.messages.slice(1, -1);
+  assert.ok(context.reduce((total, item) => total + item.content.length, 0) <= 12000);
+  assert.equal(sent.messages.at(-1).content, 'current question');
+  assert.equal(context.at(-1).content, '11'.repeat(1000));
+});
+
 test('maps an upstream timeout to HTTP 504', async () => {
   globalThis.fetch = async (_url, options) => new Promise((_resolve, reject) => {
     options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
