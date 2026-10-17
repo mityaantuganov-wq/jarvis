@@ -22,4 +22,4 @@ The code uses Cloudflare's `CF-Connecting-IP` header as the rate-limit key. If t
 
 ## Prompt cost guardrail
 
-The Worker also caps forwarded chat history at 12,000 characters total, considers at most the latest 12 history entries, and limits each history entry to 2,000 characters. The current message is validated separately (up to 8,000 characters). These character limits reduce oversized prompts but are not a precise token or dollar budget; provider-side spending limits and alerts are still required.
+The Worker also caps forwarded chat history at 12,000 characters total, considers at most the latest 12 history entries, and limits each history entry to 2,000 characters. The current message is validated separately (up to 8,000 characters). Provider responses larger than 256 KiB are rejected before JSON parsing to bound response buffering. These character limits reduce oversized prompts but are not a precise token or dollar budget; provider-side spending limits and alerts are still required.

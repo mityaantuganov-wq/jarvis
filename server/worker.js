@@ -4,6 +4,41 @@
 // Optional AI_TIMEOUT_MS sets the upstream timeout (clamped to 1–30 seconds).
 
 const MAX_REQUEST_BYTES = 64 * 1024;
+const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+
+async function readLimitedResponseText(response, maxBytes) {
+  const declaredLength = Number(response.headers.get("Content-Length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error("provider_response_too_large");
+  }
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("provider_response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
 
 async function readLimitedJson(request, maxBytes) {
   const declaredLength = Number(request.headers.get("Content-Length"));
@@ -142,11 +177,19 @@ export default {
       if (!upstream.ok) {
         return new Response(JSON.stringify({ error: "provider_error" }), { status: 502, headers });
       }
-      try { result = await upstream.json(); }
+      let providerText;
+      try { providerText = await readLimitedResponseText(upstream, MAX_PROVIDER_RESPONSE_BYTES); }
+      catch (error) {
+        if (error && error.message === "provider_response_too_large") {
+          return new Response(JSON.stringify({ error: "provider_response_too_large" }), { status: 502, headers });
+        }
+        throw error;
+      }
+      try { result = JSON.parse(providerText); }
       catch {
         return new Response(JSON.stringify({ error: "invalid_provider_response" }), { status: 502, headers });
       }
-    } catch {
+    } catch (error) {
       if (controller.signal.aborted) {
         return new Response(JSON.stringify({ error: "provider_timeout" }), { status: 504, headers });
       }

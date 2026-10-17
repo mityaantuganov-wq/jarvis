@@ -148,3 +148,28 @@ test('returns a successful provider reply without surrounding whitespace', async
   assert.equal(response.status, 200);
   assert.deepEqual(await json(response), { reply: 'привет' });
 });
+
+test('rejects oversized provider responses without returning their contents', async () => {
+  const oversized = JSON.stringify({ choices: [{ message: { content: 'x'.repeat(256 * 1024) } }] });
+  globalThis.fetch = async () => new Response(oversized, {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.equal((await json(response)).error, 'provider_response_too_large');
+});
+
+test('does not expose upstream error bodies to the browser', async () => {
+  globalThis.fetch = async () => new Response('sensitive provider diagnostics', { status: 500 });
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: 'provider_error' });
+});
+
+test('returns a generic error for malformed provider JSON', async () => {
+  globalThis.fetch = async () => new Response('{not-json', { status: 200 });
+  const response = await handler.fetch(request(), env);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await json(response), { error: 'invalid_provider_response' });
+});
