@@ -218,3 +218,45 @@ test('restores original history and notes if saving the new notes fails', async 
   expect(saved.history).toEqual(originalHistory);
   expect(saved.notes).toEqual(originalNotes);
 });
+
+
+test('rejects a backup larger than 2 MiB without changing saved data', async ({ page }) => {
+  await page.locator('#inp').fill('заметка сохранить до большой копии');
+  await page.locator('#send').click();
+
+  await page.getByRole('button', { name: 'Восстановить копию' }).click();
+  await page.locator('#restoreFile').setInputFiles({
+    name: 'oversized-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.alloc(2 * 1024 * 1024 + 1, 32)
+  });
+
+  await expect(page.locator('#log')).toContainText('Файл больше 2 МБ');
+  await page.locator('#inp').fill('покажи заметки');
+  await page.locator('#send').click();
+  await expect(page.locator('#log')).toContainText('сохранить до большой копии');
+});
+
+test('rejects backups exceeding the history entry limit without replacing current data', async ({ page }) => {
+  await page.locator('#inp').fill('заметка сохранить до слишком длинной истории');
+  await page.locator('#send').click();
+
+  const oversizedBackup = {
+    app: 'JARVIS',
+    version: 1,
+    exportedAt: '2026-10-17T00:00:00.000Z',
+    history: Array.from({ length: 151 }, (_, i) => ({ text: 'Запись ' + i, kind: 'me' })),
+    notes: []
+  };
+  await page.getByRole('button', { name: 'Восстановить копию' }).click();
+  await page.locator('#restoreFile').setInputFiles({
+    name: 'too-many-history-items.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(oversizedBackup))
+  });
+
+  await expect(page.locator('#log')).toContainText('Файл не похож на корректную резервную копию JARVIS');
+  await page.locator('#inp').fill('покажи заметки');
+  await page.locator('#send').click();
+  await expect(page.locator('#log')).toContainText('сохранить до слишком длинной истории');
+});
