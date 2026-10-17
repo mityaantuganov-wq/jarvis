@@ -291,8 +291,9 @@ test('does not expose provider network or redirect errors', async () => {
   globalThis.fetch = async () => { throw new TypeError('redirect blocked: sensitive upstream URL details'); };
   const response = await handler.fetch(request(), env);
   assert.equal(response.status, 502);
-  assert.deepEqual(await json(response), { error: 'provider_unreachable' });
-  assert.doesNotMatch(await response.clone().text(), /sensitive upstream URL details/);
+  const payload = await json(response);
+  assert.deepEqual(payload, { error: 'provider_unreachable' });
+  assert.equal(JSON.stringify(payload).includes('sensitive upstream URL details'), false);
 });
 
 test('returns a generic error when provider response has no usable reply', async () => {
