@@ -3,6 +3,42 @@
 // Optional AI_BASE_URL defaults to OpenAI's Chat Completions endpoint.
 // Optional AI_TIMEOUT_MS sets the upstream timeout (clamped to 1–30 seconds).
 
+const MAX_REQUEST_BYTES = 64 * 1024;
+
+async function readLimitedJson(request, maxBytes) {
+  const declaredLength = Number(request.headers.get("Content-Length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error("body_too_large");
+  }
+  if (!request.body) throw new Error("invalid_json");
+
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("body_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 function corsHeaders(origin, allowed) {
   return {
     "Access-Control-Allow-Origin": origin === allowed ? allowed : "null",
@@ -36,8 +72,14 @@ export default {
     }
 
     let body;
-    try { body = await request.json(); }
-    catch { return new Response(JSON.stringify({ error: "invalid_json" }), { status: 400, headers }); }
+    try {
+      body = await readLimitedJson(request, MAX_REQUEST_BYTES);
+    } catch (error) {
+      if (error && error.message === "body_too_large") {
+        return new Response(JSON.stringify({ error: "request_too_large" }), { status: 413, headers });
+      }
+      return new Response(JSON.stringify({ error: "invalid_json" }), { status: 400, headers });
+    }
     if (!body || typeof body.message !== "string" || !body.message.trim() || body.message.length > 8000) {
       return new Response(JSON.stringify({ error: "invalid_message" }), { status: 400, headers });
     }

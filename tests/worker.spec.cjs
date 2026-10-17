@@ -44,6 +44,16 @@ test('rejects malformed JSON and empty messages', async () => {
   assert.equal((await json(empty)).error, 'invalid_message');
 });
 
+test('rejects oversized request bodies before calling provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const body = JSON.stringify({ message: 'hello', history: [], padding: 'x'.repeat(64 * 1024) });
+  const response = await handler.fetch(request({ body }), env);
+  assert.equal(response.status, 413);
+  assert.equal((await json(response)).error, 'request_too_large');
+  assert.equal(called, false);
+});
+
 test('strips display labels from history before forwarding it', async () => {
   let sent;
   globalThis.fetch = async (_url, options) => {
