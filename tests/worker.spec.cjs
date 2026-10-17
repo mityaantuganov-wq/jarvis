@@ -56,6 +56,26 @@ test('rejects provider URLs with embedded credentials before calling provider', 
   assert.equal(called, false);
 });
 
+test('rejects malformed provider URLs before calling provider', async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; };
+  const response = await handler.fetch(request(), { ...env, AI_BASE_URL: 'not-a-valid-url' });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await json(response), { error: 'invalid_provider_configuration' });
+  assert.equal(called, false);
+});
+
+test('disables redirects when contacting the provider', async () => {
+  let redirectMode;
+  globalThis.fetch = async (_url, options) => {
+    redirectMode = options.redirect;
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  const response = await handler.fetch(request(), { ...env, AI_BASE_URL: 'https://provider.example/v1/chat/completions' });
+  assert.equal(response.status, 200);
+  assert.equal(redirectMode, 'error');
+});
+
 test('uses configured rate limiting binding before calling provider', async () => {
   let key;
   let called = false;
