@@ -148,3 +148,30 @@ test('rejects a modified version 2 backup and preserves current notes', async ({
   await expect(page.locator('#log')).toContainText('оставить эту запись');
   await expect(page.locator('#log')).not.toContainText('подменённая запись');
 });
+
+test('does not prefill an old access token when the AI endpoint changes', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('jarvis.ai.endpoint.v1', 'https://old-worker.example/api/chat');
+    localStorage.setItem('jarvis.ai.token.v1', 'old-secret-token');
+    const responses = ['https://new-worker.example/api/chat', ''];
+    window.__jarvisPromptCalls = [];
+    window.prompt = (message, defaultValue) => {
+      window.__jarvisPromptCalls.push({ message, defaultValue });
+      return responses.shift();
+    };
+  });
+
+  await page.getByRole('button', { name: 'Настройки ИИ' }).click();
+
+  const result = await page.evaluate(() => ({
+    prompts: window.__jarvisPromptCalls,
+    endpoint: localStorage.getItem('jarvis.ai.endpoint.v1'),
+    token: localStorage.getItem('jarvis.ai.token.v1')
+  }));
+  expect(result.prompts).toHaveLength(2);
+  expect(result.prompts[1].defaultValue).toBe('');
+  expect(result.prompts[1].message).toContain('локальном хранилище браузера');
+  expect(result.prompts[1].message).toContain('доверенном устройстве');
+  expect(result.endpoint).toBe('https://new-worker.example/api/chat');
+  expect(result.token).toBeNull();
+});
