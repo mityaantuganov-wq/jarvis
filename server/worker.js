@@ -71,6 +71,23 @@ export default {
       return new Response(JSON.stringify({ error: "server_not_configured" }), { status: 503, headers });
     }
 
+    // Optional Cloudflare Rate Limiting binding. When configured, fail closed on
+    // missing client IP or binding errors so provider spend is not silently unprotected.
+    if (env.RATE_LIMITER) {
+      const clientIp = request.headers.get("CF-Connecting-IP") || "";
+      if (!clientIp) {
+        return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), { status: 503, headers });
+      }
+      try {
+        const { success } = await env.RATE_LIMITER.limit({ key: clientIp });
+        if (!success) {
+          return new Response(JSON.stringify({ error: "rate_limited" }), { status: 429, headers });
+        }
+      } catch {
+        return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), { status: 503, headers });
+      }
+    }
+
     let body;
     try {
       body = await readLimitedJson(request, MAX_REQUEST_BYTES);
